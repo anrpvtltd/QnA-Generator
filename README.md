@@ -1,136 +1,119 @@
-# 🚀 QA-AI (AI Document Q&A System)
+# 🚀 ANR PVT LTD - AI QnA Generator (Full-Stack)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
-A production-ready, full-stack AI Document Question & Answering web application. This platform allows users to upload PDF documents and have intelligent, context-aware conversations with them. It guarantees that answers are grounded **purely in the uploaded document** (Zero Hallucination), while maintaining a persistent memory of past documents.
+A premium, production-ready AI Document Q&A application built with modern RAG (Retrieval-Augmented Generation) architecture, now powered by **Google Gemini API** for ultra-fast and free processing.
 
----
-
-## 🎯 What is this project and who is it for? (Use Cases)
-
-**What it does:** 
-It extracts text from your PDF, chunks it, converts it into mathematical vectors using OpenAI, and stores it in a scalable Supabase (pgvector) database. When you ask a question, it searches the database for the most relevant context and streams an accurate AI-generated response back to you.
-
-**Who can use it?**
-- **Students & Researchers**: Quickly extract summaries and find precise answers from massive research papers or textbooks.
-- **Lawyers & Legal Teams**: Query contracts, case files, and legal documents without reading hundreds of pages.
-- **Corporate Employees**: Chat with HR policies, financial reports, or technical manuals.
-- **Developers**: A perfect starter template for building a scalable B2B SaaS around Retrieval-Augmented Generation (RAG).
+[Live Demo](#) | [Documentation](#) | [Report Bug](#)
 
 ---
 
-## 🛠️ Tech Stack & Features
-
-**Frontend:**
-- React.js (Vite) + Tailwind CSS
-- Real-time LLM streaming responses
-- Interactive ChatGPT-like UI
-
-**Backend:**
-- Node.js + Express
-- LangChain + OpenAI API (GPT-4o-mini & embeddings)
-- Supabase (PostgreSQL + `pgvector`) for persistent Vector Search & Chat History
-- BullMQ + Upstash Redis for asynchronous background processing (Non-blocking PDF processing)
-
-**Core Features:**
-- **Zero Hallucination AI:** Strictly answers from the document context.
-- **Knowledge Memory:** Remembers past documents of the user for cross-document context.
-- **Session Isolation:** Complete privacy and data isolation between different users.
-- **Rate Limiting & Validation:** Secure against API abuse and bad payloads.
+## 📋 Table of Contents
+- [About](#-about)
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Getting Started](#-getting-started)
+- [Database Setup](#-database-setup)
+- [API Documentation](#-api-documentation)
+- [License](#-license)
 
 ---
 
-## 💻 How to Run Locally
+## 🎯 About
+**AI QnA Generator** is a state-of-the-art solution for interacting with large PDF documents. Using Google Gemini's advanced LLMs and vector embeddings, it allows users to extract precise information from their documents without manual reading.
+
+---
+
+## ✨ Features
+- 🎨 **Premium UI:** Sleek dark theme with glassmorphism.
+- ⚡ **Gemini Powered:** Fast token-by-token streaming responses.
+- ⚙️ **Vector Search:** High-performance semantic search using Supabase `pgvector` (3072 dims).
+- ⏱️ **Redis Caching:** Instant responses for repeated questions.
+- 🔒 **Secure:** Session isolation and rate limiting.
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **React 19** + **Vite**
+- **Tailwind CSS**
+
+### Backend
+| Technology | Model/Version | Purpose |
+| :--- | :--- | :--- |
+| **Node.js** | 18+ | Runtime |
+| **Gemini AI** | `gemini-1.5-flash` | LLM for Chat |
+| **Gemini Embed** | `gemini-embedding-001` | 3072-dim Embeddings |
+| **Supabase** | PostgreSQL + pgvector | Persistent Storage |
+| **Redis** | Upstash | QA Caching |
+
+---
+
+## 🚀 Getting Started
 
 ### 1. Prerequisites
-- Node.js installed (v18+)
-- A free Supabase account
-- A free Upstash Redis account
-- An OpenAI API Key
+- Node.js v18+
+- [Google AI Studio API Key](https://aistudio.google.com/app/apikey) (Free)
+- Supabase Project
 
-### 2. Backend Setup
-1. Open your terminal and navigate to the backend folder:
-   ```bash
-   cd backend
-   npm install
-   ```
-2. Create a `.env` file in the `backend` folder and add your credentials:
-   ```env
-   PORT=5000
-   OPENAI_API_KEY=your_openai_api_key
-   SUPABASE_URL=your_supabase_project_url
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-   REDIS_HOST=your_upstash_redis_url
-   REDIS_PORT=6379
-   REDIS_PASSWORD=your_upstash_redis_password
-   ```
-3. Run the backend server:
-   ```bash
-   npm start
-   ```
+### 2. Database Setup (CRITICAL)
+Gemini uses **3072** dimensions. Run this SQL in your Supabase Editor:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
 
-### 3. Frontend Setup
-1. Open a new terminal window and navigate to the frontend folder:
-   ```bash
-   cd frontend
-   npm install
-   ```
-2. Run the frontend development server:
-   ```bash
-   npm run dev
-   ```
-3. Your application should now be running at `http://localhost:3000` (or `3001`).
+-- Delete old table if exists
+DROP TABLE IF EXISTS documents;
 
----
+-- Create new table with 3072 dimensions
+CREATE TABLE documents (
+  id BIGSERIAL PRIMARY KEY,
+  content TEXT NOT NULL,
+  embedding vector(3072)
+);
 
-## 🐙 How to Push to GitHub
+-- Match function for semantic search
+CREATE OR REPLACE FUNCTION match_documents (
+  query_embedding vector(3072),
+  match_count int DEFAULT 5
+) RETURNS TABLE (
+  id bigint,
+  content text,
+  similarity float
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    id,
+    content,
+    1 - (documents.embedding <=> query_embedding) AS similarity
+  FROM documents
+  ORDER BY documents.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+```
 
-To save your code and track your changes online, follow these steps:
-
-1. **Initialize Git:** (If you haven't already)
-   Open your terminal in the root folder (`qa-ai`) and run:
-   ```bash
-   git init
-   ```
-2. **Add everything:**
-   ```bash
-   git add .
-   ```
-3. **Commit your changes:**
-   ```bash
-   git commit -m "Initial commit: Production ready AI Doc Q&A"
-   ```
-4. **Create a repo on GitHub:** 
-   Go to [github.com/new](https://github.com/new) and create an empty repository.
-5. **Link and Push:** 
-   Copy the commands GitHub gives you at the end, which will look like this:
-   ```bash
-   git branch -M main
-   git remote add origin https://github.com/yourusername/your-repo-name.git
-   git push -u origin main
-   ```
-
-*(Note: Ensure your `.env` files and `node_modules` are added to `.gitignore` so your secret keys never leak on GitHub!)*
+### 3. Environment Variables
+Create a `.env` in the `backend` folder:
+```env
+GEMINI_API_KEY=your_gemini_key
+SUPABASE_URL=your_url
+SUPABASE_SERVICE_ROLE_KEY=your_key
+REDIS_HOST=your_host
+REDIS_PORT=6379
+REDIS_PASSWORD=your_password
+```
 
 ---
 
-## 🌍 How to Deploy (Go Live)
+## 👥 Team
+Built with ❤️ by the **ANR PVT LTD Development Team**
 
-This project is built to be deployed on affordable/free tiers of modern cloud providers.
+GitHub: [@anrpvtltd](https://github.com/anrpvtltd)
 
-### Step 1: Deploy Backend (Render or Railway)
-1. Go to [Render.com](https://render.com) and create a new **Web Service**.
-2. Connect your GitHub repository.
-3. Select the `backend` folder as the **Root Directory**.
-4. Build Command: `npm install`
-5. Start Command: `npm start`
-6. Add all the environment variables from your `.env` file into the Render Environment settings.
-7. Click **Deploy**. Copy the backend URL once it's live.
-
-### Step 2: Deploy Frontend (Vercel)
-1. Go to [Vercel.com](https://vercel.com) and click **Add New Project**.
-2. Connect your GitHub repository.
-3. Select the `frontend` folder as the Root Directory.
-4. Ensure the Framework Preset is set to **Vite**.
-5. Add an environment variable like `VITE_API_URL` and set it to the Render Backend URL you just got. *(Make sure your frontend API calls use this variable instead of localhost)*.
-6. Click **Deploy**.
-
-**Congratulations! Your AI SaaS is now live for the world to use! 🎉**
+⭐ Star this repo if you find it helpful!
