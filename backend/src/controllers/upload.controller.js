@@ -1,44 +1,32 @@
-import { documentQueue } from '../services/queue.service.js';
-import { supabase } from '../services/supabase.service.js';
+import pdf from 'pdf-parse';
 import fs from 'fs';
+import { splitIntoChunks } from '../utils/chunking.js';
+import { generateEmbedding } from '../utils/embedding.js';
+import { supabase } from '../config/supabase.js';
 
-export async function uploadController(req, res, next) {
+export const uploadPDF = async (req, res) => {
   try {
-    const { userId = '00000000-0000-0000-0000-000000000000' } = req.body; 
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    if (!req.file) return res.status(400).json({ error: "No PDF file provided" });
 
-    const fileBuffer = fs.readFileSync(req.file.path);
-    const fileName = `${userId}-${Date.now()}.pdf`;
-    
-    // In actual production, ensure bucket exists
-    const { data: storageData, error: storageError } = await supabase
-      .storage.from('documents')
-      .upload(fileName, fileBuffer, { contentType: 'application/pdf' });
-      
-    if (storageError) throw storageError;
+    const dataBuffer = fs.readFileSync(req.file.path);
+    const data = await pdf(dataBuffer);
+    const chunks = splitIntoChunks(data.text);
 
-    const fileUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
+    console.log(`Processing ${chunks.length} chunks...`);
 
-    const { data: docRecord, error: dbError } = await supabase
-      .from('documents')
-      .insert({ user_id: userId, file_url: fileUrl, file_name: req.file.originalname, status: 'processing' })
-      .select()
-      .single();
-      
-    if (dbError) throw dbError;
+    for (const chunk of chunks) {
+      const embedding = await generateEmbedding(chunk);
+      const { error } = await supabase.from('documents').insert({
+        content: chunk,
+        embedding: embedding
+      });
+      if (error) throw error;
+    }
 
-    await documentQueue.add('process-pdf', {
-      filePath: req.file.path,
-      documentId: docRecord.id,
-      userId: userId
-    });
-
-    res.json({ 
-      documentId: docRecord.id, 
-      status: 'processing',
-      message: 'Processing started in the background.' 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    fs.unlinkSync(req.file.path); // Clean up temp file
+    res.json({ success: true, message: "PDF processed and stored successfully" });
+  } catch (error) {
+    console.error("Upload Error:", error);
+    res.status(500).json({ error: error.message });
   }
-}
+};
