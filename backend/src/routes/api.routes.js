@@ -6,7 +6,7 @@ import { chatWithDoc } from '../controllers/chat.controller.js';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-router.post('/upload', upload.single('pdf'), uploadPDF);
+router.post('/upload', upload.single('file'), uploadPDF);
 router.post('/chat', chatWithDoc);
 
 export default router;
