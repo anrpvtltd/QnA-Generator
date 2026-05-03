@@ -1,24 +1,30 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from 'dotenv';
 dotenv.config();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function generateEmbedding(text) {
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  return response.data[0].embedding;
+  // Using gemini-embedding-001 (768 dimensions)
+  const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+  const result = await model.embedContent(text);
+  return result.embedding.values;
 }
 
 export async function getAnswer(question, context) {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "You are a helpful assistant. Answer the user's question based strictly on the context provided." },
-      { role: "user", content: `Context: ${context}\n\nQuestion: ${question}` }
-    ],
-  });
-  return response.choices[0].message.content;
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  
+  const prompt = `
+    You are a helpful assistant. Answer the user's question based strictly on the context provided.
+    
+    Context:
+    ${context}
+    
+    Question:
+    ${question}
+  `;
+
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  return response.text();
 }
