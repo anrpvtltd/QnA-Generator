@@ -28,8 +28,9 @@ export default function FileUpload({ setSessionId, currentSessionId }) {
     const formData = new FormData();
     formData.append('file', file);
 
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     try {
-      const res = await axios.post('http://localhost:5000/upload', formData);
+      const res = await axios.post(`${API_URL}/api/upload`, formData);
       setSessionId(res.data.sessionId);
       setSuccess('Document processed! You can now ask questions.');
     } catch (err) {

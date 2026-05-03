@@ -24,8 +24,9 @@ export default function Chat({ sessionId }) {
     setLoading(true);
     setInput('');
 
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     try {
-      const res = await axios.post('http://localhost:5000/ask', {
+      const res = await axios.post(`${API_URL}/api/chat`, {
         sessionId,
         question: userMsg.text
       });
