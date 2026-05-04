@@ -9,8 +9,26 @@ export default function Chat({ sessionId }) {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    setMessages([]);
+    if (sessionId) {
+      fetchHistory();
+    } else {
+      setMessages([]);
+    }
   }, [sessionId]);
+
+  const fetchHistory = async () => {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    try {
+      const res = await axios.get(`${API_URL}/api/history/${sessionId}`);
+      const history = res.data.history.map(m => ({
+        sender: m.role === 'user' ? 'user' : 'ai',
+        text: m.content
+      }));
+      setMessages(history);
+    } catch (err) {
+      console.error("Failed to fetch history:", err);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });

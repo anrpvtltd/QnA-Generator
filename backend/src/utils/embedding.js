@@ -16,6 +16,7 @@ export async function getAnswer(question, context) {
   
   const prompt = `
     You are a helpful assistant. Answer the user's question based strictly on the context provided.
+    Every time you use information from a source, you must cite it at the end of the sentence or paragraph using the format: [Source: filename].
     
     Context:
     ${context}

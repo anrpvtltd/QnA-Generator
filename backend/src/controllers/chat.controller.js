@@ -24,12 +24,21 @@ export const chatWithDoc = async (req, res) => {
     });
     if (error) throw error;
 
-    const context = matches.map(m => m.content).join("\n\n");
+    const context = matches.map(m => `[Source: ${m.metadata?.filename || 'Unknown'}] ${m.content}`).join("\n\n");
 
-    // 4. Get Answer from OpenAI
+    // 4. Get Answer from Gemini
     const answer = await getAnswer(question, context);
 
-    // 5. Store in Redis (TTL: 1 Hour)
+    // 5. Persistent History: Save to Supabase
+    const { sessionId } = req.body;
+    if (sessionId) {
+      await supabase.from('chat_history').insert([
+        { session_id: sessionId, role: 'user', content: question },
+        { session_id: sessionId, role: 'assistant', content: answer }
+      ]);
+    }
+
+    // 6. Store in Redis (TTL: 1 Hour)
     await redisClient.set(question, answer, { EX: 3600 });
 
     res.json({ answer, source: "ai" });
