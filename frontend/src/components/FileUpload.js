@@ -31,7 +31,7 @@ export default function FileUpload({ setSessionId, currentSessionId }) {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     try {
       const res = await axios.post(`${API_URL}/api/upload`, formData);
-      setSessionId(res.data.sessionId);
+      setSessionId(res.data.documentId);
       setSuccess('Document processed! You can now ask questions.');
     } catch (err) {
       setError(err.response?.data?.error || 'Upload failed. Please try again.');

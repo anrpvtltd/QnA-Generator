@@ -9,37 +9,40 @@ export const uploadPDF = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No PDF file provided" });
 
+    // 1. Register Document to get UUID id
+    const { data: docData, error: docError } = await supabase
+      .from('documents')
+      .insert({ file_name: req.file.originalname })
+      .select()
+      .single();
+
+    if (docError) throw docError;
+    const documentId = docData.id;
+
+    // 2. Extract Text
     const dataBuffer = fs.readFileSync(req.file.path);
     const data = await pdf(dataBuffer);
-    
     let extractedText = data.text;
 
-    // If text is too short, it's likely a scanned PDF
     if (!extractedText || extractedText.trim().length < 100) {
-      console.log("Standard extraction failed. Triggering OCR...");
       extractedText = await performOCR(req.file.path);
     }
 
     const chunks = splitIntoChunks(extractedText);
 
-    console.log(`Processing ${chunks.length} chunks...`);
-
+    // 3. Insert Chunks into 'document_chunks'
     for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const embedding = await generateEmbedding(chunk);
-      const { error } = await supabase.from('documents').insert({
-        content: chunk,
-        embedding: embedding,
-        metadata: {
-          filename: req.file.originalname,
-          chunk_index: i
-        }
+      const embedding = await generateEmbedding(chunks[i]);
+      const { error: chunkError } = await supabase.from('document_chunks').insert({
+        document_id: documentId,
+        chunk_text: chunks[i],
+        embedding: embedding
       });
-      if (error) throw error;
+      if (chunkError) throw chunkError;
     }
 
-    fs.unlinkSync(req.file.path); // Clean up temp file
-    res.json({ success: true, message: "PDF processed and stored successfully" });
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, documentId, message: "PDF processed and stored in document_chunks" });
   } catch (error) {
     console.error("Upload Error:", error);
     res.status(500).json({ error: error.message });

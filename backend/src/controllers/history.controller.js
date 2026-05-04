@@ -2,20 +2,30 @@ import { supabase } from '../config/supabase.js';
 
 export const getChatHistory = async (req, res) => {
   try {
-    const { sessionId } = req.params;
-    if (!sessionId) return res.status(400).json({ error: "Session ID is required" });
+    const { documentId } = req.params;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('chat_history')
-      .select('role, content, created_at')
-      .eq('session_id', sessionId)
+      .select('question, answer, created_at')
       .order('created_at', { ascending: true });
 
+    if (documentId && documentId !== 'null') {
+      query = query.eq('document_id', documentId);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
-    res.json({ history: data });
+    // Convert one row (question+answer) into two messages for the frontend
+    const formattedHistory = [];
+    data.forEach(item => {
+      formattedHistory.push({ sender: 'user', text: item.question });
+      formattedHistory.push({ sender: 'ai', text: item.answer });
+    });
+
+    res.json({ history: formattedHistory });
   } catch (error) {
-    console.error("History Error:", error);
+    console.error("History Fetch Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
